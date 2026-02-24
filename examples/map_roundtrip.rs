@@ -1,6 +1,6 @@
 #[cfg(feature = "std")]
 fn main() {
-    use quake_util::qmap;
+    use quake_map as qmap;
     use std::env::args;
     use std::io;
 

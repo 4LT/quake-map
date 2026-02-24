@@ -1,6 +1,6 @@
-use crate::{error, qmap};
-use qmap::parser::parse;
-use qmap::EntityKind;
+use crate::{error};
+use crate::parser::parse;
+use crate::EntityKind;
 use std::ffi::CString;
 use std::io;
 

@@ -1,6 +1,6 @@
-use crate::{common, error, qmap};
+use crate::{common, error};
 use common::CellOptionExt;
-use qmap::lexer::{Token, TokenIterator};
+use crate::lexer::{Token, TokenIterator};
 use std::io;
 use std::num::NonZeroU8;
 use std::string::ToString;

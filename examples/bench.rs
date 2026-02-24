@@ -13,7 +13,7 @@ mod main {
     use libc::O_DIRECT;
     use semisync_read::SemisyncReader;
 
-    use quake_util::qmap::parse;
+    use quake_map::parse;
 
     use crate::bench_util::prepare_file;
 

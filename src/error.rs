@@ -2,35 +2,6 @@ extern crate std;
 
 use std::{error, fmt, io, num::NonZeroU64, string::String};
 
-#[derive(Debug)]
-pub enum BinParse {
-    Io(io::Error),
-    Parse(String),
-}
-
-impl From<io::Error> for BinParse {
-    fn from(err: io::Error) -> BinParse {
-        BinParse::Io(err)
-    }
-}
-
-impl fmt::Display for BinParse {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Self::Io(e) => {
-                fmt.write_fmt(format_args!("IO Error: {e}"))?;
-            }
-            Self::Parse(s) => {
-                fmt.write_fmt(format_args!("Binary Parse Error: {s}"))?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl std::error::Error for BinParse {}
-
 #[derive(Debug, Clone)]
 pub struct Line {
     pub message: String,

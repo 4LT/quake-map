@@ -3,10 +3,9 @@ extern crate std;
 
 extern crate alloc;
 
-use crate::qmap;
-use qmap::repr::*;
+use crate::repr::*;
 
-use qmap::{CheckWritable, ValidationResult};
+use crate::{CheckWritable, ValidationResult};
 
 #[cfg(feature = "std")]
 use crate::WriteError;

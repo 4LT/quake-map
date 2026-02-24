@@ -1,8 +1,7 @@
 ## Changelog
 
-### 0.4.0
+### 0.1.0
 
-* Implemented support for reading & writing Quake II map files
+* Split quake-map off from quake-util
 
-* Replaced `HashMap<CString, CString>` with `Vec<(CString, CString)>` for entity
-key/values (breaking)
+* Factor out confusing ext trait (no ".leak()")

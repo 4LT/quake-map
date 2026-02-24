@@ -65,6 +65,10 @@ pub struct TokenIterator<R: io::Read> {
 }
 
 impl<R: io::Read> TokenIterator<R> {
+    #[allow(
+        clippy::unbuffered_bytes,
+        reason = "Read implementation expected to be buffered"
+    )]
     pub fn new(reader: R) -> TokenIterator<R> {
         TokenIterator {
             text: RefCell::new(None),

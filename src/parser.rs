@@ -2,13 +2,14 @@ extern crate std;
 
 use std::{io::Read, iter::Peekable, num::NonZeroU8, str::FromStr, vec::Vec};
 
-use crate::{common, qmap, TextParseError, TextParseResult};
-use common::CellOptionExt;
-use qmap::lexer::{Token, TokenIterator};
-use qmap::repr::{
+use crate::{TextParseError, TextParseResult};
+use crate::lexer::{Token, TokenIterator};
+use crate::repr::{
     Alignment, Brush, Edict, Entity, Point, Quake2SurfaceExtension, QuakeMap,
     Surface,
 };
+
+const CELL_EXPECT: &str = "Expected cell value";
 
 type TokenPeekable<R> = Peekable<TokenIterator<R>>;
 
@@ -21,7 +22,7 @@ where
     R: Read,
 {
     fn extract(&mut self) -> Result<Option<Token>, TextParseError> {
-        self.next().transpose().map_err(|e| e.into_unwrapped())
+        self.next().transpose().map_err(|e| e.into_inner().expect(CELL_EXPECT))
     }
 }
 
@@ -65,7 +66,7 @@ fn parse_edict<R: Read>(
     while let Some(tok_res) = tokens.peek() {
         if tok_res
             .as_ref()
-            .map_err(CellOptionExt::steal)?
+            .map_err(|e| e.take().expect(CELL_EXPECT))?
             .match_quoted()
         {
             let key = strip_quoted(&tokens.extract()?.unwrap().text)
@@ -90,7 +91,10 @@ fn parse_brushes<R: Read>(
     let mut brushes = Vec::new();
 
     while let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref().map_err(|e| e.steal())?.match_byte(b'{') {
+        if tok_res.as_ref()
+            .map_err(|e| e.take().expect(CELL_EXPECT))?
+            .match_byte(b'{')
+        {
             brushes.push(parse_brush(tokens)?);
         } else {
             break;
@@ -107,7 +111,10 @@ fn parse_brush<R: Read>(
     expect_byte(&tokens.extract()?, b'{')?;
 
     while let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref().map_err(|e| e.steal())?.match_byte(b'(') {
+        if tok_res.as_ref()
+            .map_err(|e| e.take().expect(CELL_EXPECT))?
+            .match_byte(b'(')
+        {
             surfaces.push(parse_surface(tokens)?);
         } else {
             break;
@@ -136,7 +143,10 @@ fn parse_surface<R: Read>(
     };
 
     let alignment = if let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref().map_err(|e| e.steal())?.match_byte(b'[') {
+        if tok_res.as_ref()
+            .map_err(|e| e.take().expect(CELL_EXPECT))?
+            .match_byte(b'[')
+        {
             parse_valve_alignment(tokens)?
         } else {
             parse_legacy_alignment(tokens)?
@@ -146,7 +156,10 @@ fn parse_surface<R: Read>(
     };
 
     let q2ext = if let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref().map_err(|e| e.steal())?.starts_numeric() {
+        if tok_res.as_ref()
+            .map_err(|e| e.take().expect(CELL_EXPECT))?
+            .starts_numeric()
+        {
             parse_q2_ext(tokens)?
         } else {
             Default::default()
