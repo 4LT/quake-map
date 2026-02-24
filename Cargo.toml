@@ -15,3 +15,7 @@ std = []
 [dev-dependencies]
 benchmarking = "^0.4"
 png = "^0.17"
+libc = "^0.2.182"
+
+[dev-dependencies.semisync-read]
+path = "../semisync-read"
