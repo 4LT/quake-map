@@ -2,7 +2,7 @@ extern crate std;
 
 use std::{io::Read, iter::Peekable, str::FromStr, vec::Vec};
 
-use crate::lexer::{Token, LineToken, TokenIterator};
+use crate::lexer::{LineToken, Token, TokenIterator};
 use crate::repr::{
     Alignment, Brush, Edict, Entity, Point, Quake2SurfaceExtension, QuakeMap,
     Surface,
@@ -93,7 +93,8 @@ fn parse_brushes<R: Read>(
         if tok_res
             .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .token == Token::OpenCurly
+            .token
+            == Token::OpenCurly
         {
             brushes.push(parse_brush(tokens)?);
         } else {
@@ -114,7 +115,8 @@ fn parse_brush<R: Read>(
         if tok_res
             .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .token == Token::OpenParen
+            .token
+            == Token::OpenParen
         {
             surfaces.push(parse_surface(tokens)?);
         } else {
@@ -143,7 +145,8 @@ fn parse_surface<R: Read>(
         if tok_res
             .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .token == Token::OpenSquare
+            .token
+            == Token::OpenSquare
         {
             parse_valve_alignment(tokens)?
         } else {
@@ -249,16 +252,12 @@ fn parse_valve_alignment<R: Read>(
 
 fn expect_token(
     line_token: &Option<LineToken>,
-    token: Token
+    token: Token,
 ) -> TextParseResult<()> {
     match line_token.as_ref() {
         Some(payload) if payload.token == token => Ok(()),
         Some(payload) => Err(TextParseError::from_parser(
-            format!(
-                "Expected `{}`, got `{}`",
-                token,
-                payload.token
-            ),
+            format!("Expected `{}`, got `{}`", token, payload.token),
             payload.line_number,
         )),
         _ => Err(TextParseError::eof()),
@@ -283,9 +282,7 @@ fn expect_token_or(
             Err(TextParseError::from_parser(
                 format!(
                     "Expected {} or `{}`, got `{}`",
-                    rest_str,
-                    token,
-                    payload.token
+                    rest_str, token, payload.token
                 ),
                 payload.line_number,
             ))
@@ -307,7 +304,7 @@ fn expect_quoted(token: &Option<LineToken>) -> TextParseResult<()> {
 
 fn expect_float(token: &Option<LineToken>) -> TextParseResult<f64> {
     match token.as_ref() {
-        Some(payload) => match f64::from_str(&payload.token.to_string_fast()) {
+        Some(payload) => match f64::from_str(payload.token.as_number_text()) {
             Ok(num) => Ok(num),
             Err(_) => Err(TextParseError::from_parser(
                 format!("Expected number, got `{}`", payload.token),
@@ -320,13 +317,10 @@ fn expect_float(token: &Option<LineToken>) -> TextParseResult<f64> {
 
 fn expect_int(token: &Option<LineToken>) -> TextParseResult<i32> {
     match token.as_ref() {
-        Some(payload) => match i32::from_str(&payload.token.to_string_fast()) {
+        Some(payload) => match i32::from_str(payload.token.as_number_text()) {
             Ok(num) => Ok(num),
             Err(_) => Err(TextParseError::from_parser(
-                format!(
-                    "Expected integer, got `{}`",
-                    payload.token
-                ),
+                format!("Expected integer, got `{}`", payload.token),
                 payload.line_number,
             )),
         },

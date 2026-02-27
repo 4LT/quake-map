@@ -7,12 +7,13 @@ use std::{
     ffi::CString,
     fmt, io,
     iter::once,
+    mem::transmute,
     num::{NonZeroU64, NonZeroU8},
     string::String,
     vec::Vec,
 };
 
-use fmt::{ Display, Formatter };
+use fmt::{Display, Formatter};
 
 use crate::error;
 
@@ -33,6 +34,16 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn as_number_text(&self) -> &str {
+        match &self {
+            Token::BareString(s) => {
+                let slice = unsafe { transmute::<&[NonZeroU8], &[u8]>(&s[..]) };
+                str::from_utf8(slice).unwrap_or("")
+            }
+            _ => "",
+        }
+    }
+
     pub fn to_string_fast(&self) -> String {
         match &self {
             Token::OpenParen => String::from("("),
@@ -41,17 +52,11 @@ impl Token {
             Token::CloseCurly => String::from("}"),
             Token::OpenSquare => String::from("["),
             Token::CloseSquare => String::from("]"),
-            Token::QuotedString(s) => {
-                once('"').chain(
-                    s.iter()
-                        .map(|ch| char::from(ch.get()))
-                        .chain(once('"'))
-                ).collect()
-            },
+            Token::QuotedString(s) => once('"')
+                .chain(s.iter().map(|ch| char::from(ch.get())).chain(once('"')))
+                .collect(),
             Token::BareString(s) => {
-                s.iter()
-                    .map(|ch| char::from(ch.get()))
-                    .collect()
+                s.iter().map(|ch| char::from(ch.get())).collect()
             }
         }
     }
@@ -66,9 +71,7 @@ impl Display for Token {
             Token::CloseCurly => fmtr.write_str("}"),
             Token::OpenSquare => fmtr.write_str("["),
             Token::CloseSquare => fmtr.write_str("]"),
-            _ => {
-                fmtr.write_str(&self.to_string_fast())
-            }
+            _ => fmtr.write_str(&self.to_string_fast()),
         }
     }
 }
@@ -95,7 +98,7 @@ impl LineToken {
             && text[0].get() == b'"'
             && text.last() == Some(&b'"'.try_into().unwrap())
         {
-            Token::QuotedString(text[1..text.len()-1].to_vec())
+            Token::QuotedString(text[1..text.len() - 1].to_vec())
         } else {
             Token::BareString(text)
         };
