@@ -4,17 +4,7 @@ _Seth "4LT" Rader_
 
 # About
 
-A utility library for using Quake file formats.
-
-# Modules
-
-## qmap
-
-Quake source map parsing, writing, and data structures.
-
-## wad
-
-Reading WAD files and extracting lumps.
+Library for parsing and writing Quake I and Quake II `.map` files.
 
 # License
 
@@ -22,6 +12,6 @@ CC0 or MIT or Apache-2.0, your choice.
 
 # Additional Credits
 
-* ad_heresp2.map - "Imhotep's Legacy"
+* ad\_heresp2.map - "Imhotep's Legacy"
     * Map by Heresy, used here for "macro" benchmarking
 

@@ -10,7 +10,7 @@ checksum = "32842502e72b27b30b2681692d16bf47a8a375c5a2795613f0dc699bed9a48bb"
 
 [[package]]
 name = "quake-map"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "benchmarking",
 ]
