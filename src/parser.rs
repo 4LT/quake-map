@@ -157,11 +157,13 @@ fn parse_surface<R: Read>(
     };
 
     let q2ext = if let Some(tok_res) = tokens.peek() {
-        if tok_res
-            .as_ref()
-            .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .starts_numeric()
-        {
+        if matches!(
+            tok_res
+                .as_ref()
+                .map_err(|e| e.take().expect(CELL_EXPECT))?
+                .token,
+            Token::BareString(_),
+        ) {
             parse_q2_ext(tokens)?
         } else {
             Default::default()

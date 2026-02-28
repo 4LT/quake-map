@@ -116,14 +116,6 @@ impl LineToken {
     pub fn is_quoted(&self) -> bool {
         matches!(&self.token, Token::QuotedString(_))
     }
-
-    pub fn starts_numeric(&self) -> bool {
-        if let Token::BareString(v) = &self.token {
-            !v.is_empty() && (v[0].get() == b'-' || v[0].get().is_ascii_digit())
-        } else {
-            false
-        }
-    }
 }
 
 impl fmt::Display for LineToken {
