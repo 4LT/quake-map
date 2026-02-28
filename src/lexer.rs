@@ -2,7 +2,7 @@
 extern crate std;
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     convert::TryInto,
     ffi::CString,
     fmt, io,
@@ -124,9 +124,8 @@ impl fmt::Display for LineToken {
     }
 }
 
-#[derive(Debug)]
 pub struct TokenIterator<R: io::Read> {
-    text: RefCell<Option<Vec<NonZeroU8>>>,
+    text: Cell<Option<Vec<NonZeroU8>>>,
     state: fn(iter: &mut TokenIterator<R>) -> Option<LineToken>,
     byte: Option<NonZeroU8>,
     last_byte: Option<NonZeroU8>,
@@ -141,7 +140,7 @@ impl<R: io::Read> TokenIterator<R> {
     )]
     pub fn new(reader: R) -> TokenIterator<R> {
         TokenIterator {
-            text: RefCell::new(None),
+            text: Cell::new(None),
             state: lex_default,
             byte: None,
             last_byte: None,
@@ -224,14 +223,14 @@ fn lex_default<R: io::Read>(
             iterator.state = lex_quoted;
             let mut text_bytes = Vec::with_capacity(TEXT_CAPACITY);
             text_bytes.push(iterator.byte.unwrap());
-            *iterator.text.borrow_mut() = Some(text_bytes);
+            iterator.text.replace(Some(text_bytes));
         } else if iterator.byte == NonZeroU8::new(b'/') {
             iterator.state = lex_maybe_comment;
         } else {
             iterator.state = lex_unquoted;
             let mut text_bytes = Vec::with_capacity(TEXT_CAPACITY);
             text_bytes.push(iterator.byte.unwrap());
-            *iterator.text.borrow_mut() = Some(text_bytes);
+            iterator.text.replace(Some(text_bytes));
         }
     }
 
@@ -259,7 +258,7 @@ fn lex_maybe_comment<R: io::Read>(
         let mut text_bytes: Vec<NonZeroU8> = Vec::with_capacity(TEXT_CAPACITY);
         text_bytes.push(NonZeroU8::new(b'/').unwrap());
         text_bytes.push(iterator.byte.unwrap());
-        *iterator.text.borrow_mut() = Some(text_bytes);
+        iterator.text.replace(Some(text_bytes));
         iterator.state = lex_unquoted;
     }
 
@@ -271,7 +270,7 @@ fn lex_quoted<R: io::Read>(
 ) -> Option<LineToken> {
     iterator
         .text
-        .borrow_mut()
+        .get_mut()
         .as_mut()
         .unwrap()
         .push(iterator.byte.unwrap());
@@ -296,7 +295,7 @@ fn lex_unquoted<R: io::Read>(
     } else {
         iterator
             .text
-            .borrow_mut()
+            .get_mut()
             .as_mut()
             .unwrap()
             .push(iterator.byte.unwrap());
