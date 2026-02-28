@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.5.2
+
+* More README fixes (:
+
 ### 0.5.1
 
 * Fix changelog and README
