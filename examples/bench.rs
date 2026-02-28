@@ -5,27 +5,14 @@ mod bench_util;
 mod main {
     use std::fs::File;
     use std::io::{BufReader, Read};
-    use std::os::unix::fs::OpenOptionsExt;
     use std::time::Duration;
 
     use benchmarking::measure_function_with_times;
     use benchmarking::Measurer;
-    use libc::O_DIRECT;
-    use semisync_read::SemisyncReader;
 
     use quake_map::parse;
 
     use crate::bench_util::prepare_file;
-
-    fn parse_file_semisync(file_path: &str) {
-        let f = File::options()
-            .read(true)
-            //.custom_flags(O_DIRECT)
-            .open(file_path)
-            .unwrap();
-        let mut reader = SemisyncReader::new(f).unwrap();
-        let _ = parse(&mut reader).unwrap();
-    }
 
     fn parse_file_buffered(file_path: &str) {
         let f = File::open(file_path).unwrap();
@@ -91,7 +78,6 @@ mod main {
             .collect::<Vec<_>>();
 
         let methods: [(&str, &dyn Fn(&str)); _] = [
-            ("asynchronous IO", &parse_file_semisync),
             ("buffered IO", &parse_file_buffered),
             ("slurping", &parse_file_slurp),
         ];
