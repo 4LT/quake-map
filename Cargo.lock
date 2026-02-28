@@ -9,47 +9,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32842502e72b27b30b2681692d16bf47a8a375c5a2795613f0dc699bed9a48bb"
 
 [[package]]
-name = "bitflags"
-version = "2.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
-
-[[package]]
-name = "cfg-if"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
-
-[[package]]
-name = "io-uring"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd7bddefd0a8833b88a4b68f90dae22c7450d11b354198baee3874fd811b344"
-dependencies = [
- "bitflags",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "libc"
-version = "0.2.182"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
-
-[[package]]
 name = "quake-map"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "benchmarking",
- "libc",
- "semisync-read",
-]
-
-[[package]]
-name = "semisync-read"
-version = "0.0.1"
-dependencies = [
- "io-uring",
- "libc",
 ]

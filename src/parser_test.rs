@@ -1,4 +1,4 @@
-use crate::{error};
+use crate::error;
 use crate::parser::parse;
 use crate::EntityKind;
 use std::ffi::CString;

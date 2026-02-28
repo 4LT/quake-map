@@ -2,62 +2,131 @@
 extern crate std;
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     convert::TryInto,
+    ffi::CString,
     fmt, io,
+    iter::once,
+    mem::transmute,
     num::{NonZeroU64, NonZeroU8},
     string::String,
     vec::Vec,
 };
 
+use fmt::{Display, Formatter};
+
 use crate::error;
 
-pub type LexResult = Result<Option<Token>, Cell<Option<error::TextParse>>>;
+pub type LexResult = Result<Option<LineToken>, Cell<Option<error::TextParse>>>;
 
 const TEXT_CAPACITY: usize = 32;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct Token {
-    pub text: Vec<NonZeroU8>,
-    pub line_number: NonZeroU64,
+pub enum Token {
+    OpenParen,
+    CloseParen,
+    OpenCurly,
+    CloseCurly,
+    OpenSquare,
+    CloseSquare,
+    QuotedString(Vec<NonZeroU8>),
+    BareString(Vec<NonZeroU8>),
 }
 
 impl Token {
-    pub fn match_byte(&self, byte: u8) -> bool {
-        self.text.len() == 1 && self.text[0].get() == byte
-    }
-
-    pub fn match_quoted(&self) -> bool {
-        self.text.len() >= 2
-            && self.text[0] == b'"'.try_into().unwrap()
-            && self.text.last() == Some(&b'"'.try_into().unwrap())
-    }
-
-    pub fn starts_numeric(&self) -> bool {
-        !self.text.is_empty() && {
-            let first_byte = self.text[0].get();
-            first_byte == b'-' || first_byte.is_ascii_digit()
+    pub fn as_number_text(&self) -> &str {
+        match &self {
+            Token::BareString(s) => {
+                let slice = unsafe { transmute::<&[NonZeroU8], &[u8]>(&s[..]) };
+                str::from_utf8(slice).unwrap_or("")
+            }
+            _ => "",
         }
     }
 
-    pub fn text_as_string(&self) -> String {
-        self.text
-            .iter()
-            .map::<char, _>(|ch| ch.get().into())
-            .collect()
+    pub fn to_string_fast(&self) -> String {
+        match &self {
+            Token::OpenParen => String::from("("),
+            Token::CloseParen => String::from(")"),
+            Token::OpenCurly => String::from("{"),
+            Token::CloseCurly => String::from("}"),
+            Token::OpenSquare => String::from("["),
+            Token::CloseSquare => String::from("]"),
+            Token::QuotedString(s) => once('"')
+                .chain(s.iter().map(|ch| char::from(ch.get())).chain(once('"')))
+                .collect(),
+            Token::BareString(s) => {
+                s.iter().map(|ch| char::from(ch.get())).collect()
+            }
+        }
     }
 }
 
-impl fmt::Display for Token {
+impl Display for Token {
+    fn fmt(&self, fmtr: &mut Formatter) -> fmt::Result {
+        match &self {
+            Token::OpenParen => fmtr.write_str("("),
+            Token::CloseParen => fmtr.write_str(")"),
+            Token::OpenCurly => fmtr.write_str("{"),
+            Token::CloseCurly => fmtr.write_str("}"),
+            Token::OpenSquare => fmtr.write_str("["),
+            Token::CloseSquare => fmtr.write_str("]"),
+            _ => fmtr.write_str(&self.to_string_fast()),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct LineToken {
+    pub token: Token,
+    pub line_number: NonZeroU64,
+}
+
+impl LineToken {
+    pub fn from_text(text: Vec<NonZeroU8>, line_number: NonZeroU64) -> Self {
+        let token = if text.len() == 1 {
+            match text[0].get() {
+                b'(' => Token::OpenParen,
+                b')' => Token::CloseParen,
+                b'{' => Token::OpenCurly,
+                b'}' => Token::CloseCurly,
+                b'[' => Token::OpenSquare,
+                b']' => Token::CloseSquare,
+                _ => Token::BareString(text),
+            }
+        } else if text.len() >= 2
+            && text[0].get() == b'"'
+            && text.last() == Some(&b'"'.try_into().unwrap())
+        {
+            Token::QuotedString(text[1..text.len() - 1].to_vec())
+        } else {
+            Token::BareString(text)
+        };
+
+        Self { token, line_number }
+    }
+
+    pub fn into_bare_cstring(self) -> CString {
+        match self.token {
+            Token::BareString(s) | Token::QuotedString(s) => s.into(),
+            _ => CString::new("").unwrap(),
+        }
+    }
+
+    pub fn is_quoted(&self) -> bool {
+        matches!(&self.token, Token::QuotedString(_))
+    }
+}
+
+impl fmt::Display for LineToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: line {}", self.text_as_string(), self.line_number)
+        write!(f, "{}: line {}", self.token, self.line_number)
     }
 }
 
-#[derive(Debug)]
 pub struct TokenIterator<R: io::Read> {
-    text: RefCell<Option<Vec<NonZeroU8>>>,
-    state: fn(iter: &mut TokenIterator<R>) -> Option<Token>,
+    text: Cell<Option<Vec<NonZeroU8>>>,
+    state: fn(iter: &mut TokenIterator<R>) -> Option<LineToken>,
     byte: Option<NonZeroU8>,
     last_byte: Option<NonZeroU8>,
     line_number: NonZeroU64,
@@ -71,7 +140,7 @@ impl<R: io::Read> TokenIterator<R> {
     )]
     pub fn new(reader: R) -> TokenIterator<R> {
         TokenIterator {
-            text: RefCell::new(None),
+            text: Cell::new(None),
             state: lex_default,
             byte: None,
             last_byte: None,
@@ -122,10 +191,7 @@ impl<R: io::Read> TokenIterator<R> {
                     self.line_number,
                 ))))
             } else {
-                Ok(Some(Token {
-                    text: last_text,
-                    line_number: self.line_number,
-                }))
+                Ok(Some(LineToken::from_text(last_text, self.line_number)))
             }
         } else {
             Ok(None)
@@ -134,7 +200,7 @@ impl<R: io::Read> TokenIterator<R> {
 }
 
 impl<R: io::Read> Iterator for TokenIterator<R> {
-    type Item = Result<Token, Cell<Option<error::TextParse>>>;
+    type Item = Result<LineToken, Cell<Option<error::TextParse>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -149,27 +215,31 @@ impl<R: io::Read> Iterator for TokenIterator<R> {
     }
 }
 
-fn lex_default<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
+fn lex_default<R: io::Read>(
+    iterator: &mut TokenIterator<R>,
+) -> Option<LineToken> {
     if !iterator.byte.unwrap().get().is_ascii_whitespace() {
         if iterator.byte == NonZeroU8::new(b'"') {
             iterator.state = lex_quoted;
             let mut text_bytes = Vec::with_capacity(TEXT_CAPACITY);
             text_bytes.push(iterator.byte.unwrap());
-            *iterator.text.borrow_mut() = Some(text_bytes);
+            iterator.text.replace(Some(text_bytes));
         } else if iterator.byte == NonZeroU8::new(b'/') {
             iterator.state = lex_maybe_comment;
         } else {
             iterator.state = lex_unquoted;
             let mut text_bytes = Vec::with_capacity(TEXT_CAPACITY);
             text_bytes.push(iterator.byte.unwrap());
-            *iterator.text.borrow_mut() = Some(text_bytes);
+            iterator.text.replace(Some(text_bytes));
         }
     }
 
     None
 }
 
-fn lex_comment<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
+fn lex_comment<R: io::Read>(
+    iterator: &mut TokenIterator<R>,
+) -> Option<LineToken> {
     if iterator.byte == NonZeroU8::new(b'\r')
         || iterator.byte == NonZeroU8::new(b'\n')
     {
@@ -181,24 +251,26 @@ fn lex_comment<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
 
 fn lex_maybe_comment<R: io::Read>(
     iterator: &mut TokenIterator<R>,
-) -> Option<Token> {
+) -> Option<LineToken> {
     if iterator.byte == NonZeroU8::new(b'/') {
         iterator.state = lex_comment;
     } else {
         let mut text_bytes: Vec<NonZeroU8> = Vec::with_capacity(TEXT_CAPACITY);
         text_bytes.push(NonZeroU8::new(b'/').unwrap());
         text_bytes.push(iterator.byte.unwrap());
-        *iterator.text.borrow_mut() = Some(text_bytes);
+        iterator.text.replace(Some(text_bytes));
         iterator.state = lex_unquoted;
     }
 
     None
 }
 
-fn lex_quoted<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
+fn lex_quoted<R: io::Read>(
+    iterator: &mut TokenIterator<R>,
+) -> Option<LineToken> {
     iterator
         .text
-        .borrow_mut()
+        .get_mut()
         .as_mut()
         .unwrap()
         .push(iterator.byte.unwrap());
@@ -206,28 +278,24 @@ fn lex_quoted<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
         let local_text = iterator.text.replace(None).unwrap();
         iterator.state = lex_default;
 
-        Some(Token {
-            text: local_text,
-            line_number: iterator.line_number,
-        })
+        Some(LineToken::from_text(local_text, iterator.line_number))
     } else {
         None
     }
 }
 
-fn lex_unquoted<R: io::Read>(iterator: &mut TokenIterator<R>) -> Option<Token> {
+fn lex_unquoted<R: io::Read>(
+    iterator: &mut TokenIterator<R>,
+) -> Option<LineToken> {
     if iterator.byte.unwrap().get().is_ascii_whitespace() {
         let local_text = iterator.text.replace(None).unwrap();
         iterator.state = lex_default;
 
-        Some(Token {
-            text: local_text,
-            line_number: iterator.line_number,
-        })
+        Some(LineToken::from_text(local_text, iterator.line_number))
     } else {
         iterator
             .text
-            .borrow_mut()
+            .get_mut()
             .as_mut()
             .unwrap()
             .push(iterator.byte.unwrap());

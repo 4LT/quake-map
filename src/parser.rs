@@ -1,28 +1,30 @@
 extern crate std;
 
-use std::{io::Read, iter::Peekable, num::NonZeroU8, str::FromStr, vec::Vec};
+use std::{io::Read, iter::Peekable, str::FromStr, vec::Vec};
 
-use crate::{TextParseError, TextParseResult};
-use crate::lexer::{Token, TokenIterator};
+use crate::lexer::{LineToken, Token, TokenIterator};
 use crate::repr::{
     Alignment, Brush, Edict, Entity, Point, Quake2SurfaceExtension, QuakeMap,
     Surface,
 };
+use crate::{TextParseError, TextParseResult};
 
 const CELL_EXPECT: &str = "Expected cell value";
 
 type TokenPeekable<R> = Peekable<TokenIterator<R>>;
 
 trait Extract {
-    fn extract(&mut self) -> TextParseResult<Option<Token>>;
+    fn extract(&mut self) -> TextParseResult<Option<LineToken>>;
 }
 
 impl<R> Extract for TokenPeekable<R>
 where
     R: Read,
 {
-    fn extract(&mut self) -> Result<Option<Token>, TextParseError> {
-        self.next().transpose().map_err(|e| e.into_inner().expect(CELL_EXPECT))
+    fn extract(&mut self) -> Result<Option<LineToken>, TextParseError> {
+        self.next()
+            .transpose()
+            .map_err(|e| e.into_inner().expect(CELL_EXPECT))
     }
 }
 
@@ -48,12 +50,12 @@ pub fn parse<R: Read>(reader: &mut R) -> TextParseResult<QuakeMap> {
 fn parse_entity<R: Read>(
     tokens: &mut TokenPeekable<R>,
 ) -> TextParseResult<Entity> {
-    expect_byte(&tokens.extract()?, b'{')?;
+    expect_token(&tokens.extract()?, Token::OpenCurly)?;
 
     let edict = parse_edict(tokens)?;
     let brushes = parse_brushes(tokens)?;
 
-    expect_byte(&tokens.extract()?, b'}')?;
+    expect_token(&tokens.extract()?, Token::CloseCurly)?;
 
     Ok(Entity { edict, brushes })
 }
@@ -67,15 +69,12 @@ fn parse_edict<R: Read>(
         if tok_res
             .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .match_quoted()
+            .is_quoted()
         {
-            let key = strip_quoted(&tokens.extract()?.unwrap().text)
-                .to_vec()
-                .into();
+            let key = tokens.extract()?.unwrap().into_bare_cstring();
             let maybe_value = tokens.extract()?;
             expect_quoted(&maybe_value)?;
-            let value =
-                strip_quoted(&maybe_value.unwrap().text).to_vec().into();
+            let value = maybe_value.unwrap().into_bare_cstring();
             edict.push((key, value));
         } else {
             break;
@@ -91,9 +90,11 @@ fn parse_brushes<R: Read>(
     let mut brushes = Vec::new();
 
     while let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref()
+        if tok_res
+            .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .match_byte(b'{')
+            .token
+            == Token::OpenCurly
         {
             brushes.push(parse_brush(tokens)?);
         } else {
@@ -108,12 +109,14 @@ fn parse_brush<R: Read>(
     tokens: &mut TokenPeekable<R>,
 ) -> TextParseResult<Brush> {
     let mut surfaces = Vec::with_capacity(MIN_BRUSH_SURFACES);
-    expect_byte(&tokens.extract()?, b'{')?;
+    expect_token(&tokens.extract()?, Token::OpenCurly)?;
 
     while let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref()
+        if tok_res
+            .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .match_byte(b'(')
+            .token
+            == Token::OpenParen
         {
             surfaces.push(parse_surface(tokens)?);
         } else {
@@ -121,7 +124,7 @@ fn parse_brush<R: Read>(
         }
     }
 
-    expect_byte_or(&tokens.extract()?, b'}', b"(")?;
+    expect_token_or(&tokens.extract()?, Token::CloseCurly, b"(")?;
     Ok(surfaces)
 }
 
@@ -134,18 +137,16 @@ fn parse_surface<R: Read>(
 
     let half_space = [pt1, pt2, pt3];
 
-    let texture_token = &tokens.extract()?.ok_or_else(TextParseError::eof)?;
+    let texture_token = tokens.extract()?.ok_or_else(TextParseError::eof)?;
 
-    let texture = if b'"' == (&texture_token.text)[0].into() {
-        strip_quoted(&texture_token.text[..]).to_vec().into()
-    } else {
-        texture_token.text.clone().into()
-    };
+    let texture = texture_token.into_bare_cstring();
 
     let alignment = if let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref()
+        if tok_res
+            .as_ref()
             .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .match_byte(b'[')
+            .token
+            == Token::OpenSquare
         {
             parse_valve_alignment(tokens)?
         } else {
@@ -156,10 +157,13 @@ fn parse_surface<R: Read>(
     };
 
     let q2ext = if let Some(tok_res) = tokens.peek() {
-        if tok_res.as_ref()
-            .map_err(|e| e.take().expect(CELL_EXPECT))?
-            .starts_numeric()
-        {
+        if matches!(
+            tok_res
+                .as_ref()
+                .map_err(|e| e.take().expect(CELL_EXPECT))?
+                .token,
+            Token::BareString(_),
+        ) {
             parse_q2_ext(tokens)?
         } else {
             Default::default()
@@ -179,11 +183,11 @@ fn parse_surface<R: Read>(
 fn parse_point<R: Read>(
     tokens: &mut TokenPeekable<R>,
 ) -> TextParseResult<Point> {
-    expect_byte(&tokens.extract()?, b'(')?;
+    expect_token(&tokens.extract()?, Token::OpenParen)?;
     let x = expect_float(&tokens.extract()?)?;
     let y = expect_float(&tokens.extract()?)?;
     let z = expect_float(&tokens.extract()?)?;
-    expect_byte(&tokens.extract()?, b')')?;
+    expect_token(&tokens.extract()?, Token::CloseParen)?;
 
     Ok([x, y, z])
 }
@@ -222,19 +226,19 @@ fn parse_q2_ext<R: Read>(
 fn parse_valve_alignment<R: Read>(
     tokens: &mut TokenPeekable<R>,
 ) -> TextParseResult<Alignment> {
-    expect_byte(&tokens.extract()?, b'[')?;
+    expect_token(&tokens.extract()?, Token::OpenSquare)?;
     let u_x = expect_float(&tokens.extract()?)?;
     let u_y = expect_float(&tokens.extract()?)?;
     let u_z = expect_float(&tokens.extract()?)?;
     let offset_x = expect_float(&tokens.extract()?)?;
-    expect_byte(&tokens.extract()?, b']')?;
+    expect_token(&tokens.extract()?, Token::CloseSquare)?;
 
-    expect_byte(&tokens.extract()?, b'[')?;
+    expect_token(&tokens.extract()?, Token::OpenSquare)?;
     let v_x = expect_float(&tokens.extract()?)?;
     let v_y = expect_float(&tokens.extract()?)?;
     let v_z = expect_float(&tokens.extract()?)?;
     let offset_y = expect_float(&tokens.extract()?)?;
-    expect_byte(&tokens.extract()?, b']')?;
+    expect_token(&tokens.extract()?, Token::CloseSquare)?;
 
     let rotation = expect_float(&tokens.extract()?)?;
     let scale_x = expect_float(&tokens.extract()?)?;
@@ -248,28 +252,27 @@ fn parse_valve_alignment<R: Read>(
     })
 }
 
-fn expect_byte(token: &Option<Token>, byte: u8) -> TextParseResult<()> {
-    match token.as_ref() {
-        Some(payload) if payload.match_byte(byte) => Ok(()),
+fn expect_token(
+    line_token: &Option<LineToken>,
+    token: Token,
+) -> TextParseResult<()> {
+    match line_token.as_ref() {
+        Some(payload) if payload.token == token => Ok(()),
         Some(payload) => Err(TextParseError::from_parser(
-            format!(
-                "Expected `{}`, got `{}`",
-                char::from(byte),
-                payload.text_as_string()
-            ),
+            format!("Expected `{}`, got `{}`", token, payload.token),
             payload.line_number,
         )),
         _ => Err(TextParseError::eof()),
     }
 }
 
-fn expect_byte_or(
-    token: &Option<Token>,
-    byte: u8,
+fn expect_token_or(
+    line_token: &Option<LineToken>,
+    token: Token,
     rest: &[u8],
 ) -> TextParseResult<()> {
-    match token.as_ref() {
-        Some(payload) if payload.match_byte(byte) => Ok(()),
+    match line_token.as_ref() {
+        Some(payload) if payload.token == token => Ok(()),
         Some(payload) => {
             let rest_str = rest
                 .iter()
@@ -281,9 +284,7 @@ fn expect_byte_or(
             Err(TextParseError::from_parser(
                 format!(
                     "Expected {} or `{}`, got `{}`",
-                    rest_str,
-                    char::from(byte),
-                    payload.text_as_string()
+                    rest_str, token, payload.token
                 ),
                 payload.line_number,
             ))
@@ -292,23 +293,23 @@ fn expect_byte_or(
     }
 }
 
-fn expect_quoted(token: &Option<Token>) -> TextParseResult<()> {
+fn expect_quoted(token: &Option<LineToken>) -> TextParseResult<()> {
     match token.as_ref() {
-        Some(payload) if payload.match_quoted() => Ok(()),
+        Some(payload) if payload.is_quoted() => Ok(()),
         Some(payload) => Err(TextParseError::from_parser(
-            format!("Expected quoted, got `{}`", payload.text_as_string()),
+            format!("Expected quoted, got `{}`", payload.token),
             payload.line_number,
         )),
         _ => Err(TextParseError::eof()),
     }
 }
 
-fn expect_float(token: &Option<Token>) -> TextParseResult<f64> {
+fn expect_float(token: &Option<LineToken>) -> TextParseResult<f64> {
     match token.as_ref() {
-        Some(payload) => match f64::from_str(&payload.text_as_string()) {
+        Some(payload) => match f64::from_str(payload.token.as_number_text()) {
             Ok(num) => Ok(num),
             Err(_) => Err(TextParseError::from_parser(
-                format!("Expected number, got `{}`", payload.text_as_string()),
+                format!("Expected number, got `{}`", payload.token),
                 payload.line_number,
             )),
         },
@@ -316,19 +317,15 @@ fn expect_float(token: &Option<Token>) -> TextParseResult<f64> {
     }
 }
 
-fn expect_int(token: &Option<Token>) -> TextParseResult<i32> {
+fn expect_int(token: &Option<LineToken>) -> TextParseResult<i32> {
     match token.as_ref() {
-        Some(payload) => match i32::from_str(&payload.text_as_string()) {
+        Some(payload) => match i32::from_str(payload.token.as_number_text()) {
             Ok(num) => Ok(num),
             Err(_) => Err(TextParseError::from_parser(
-                format!("Expected integer, got `{}`", payload.text_as_string()),
+                format!("Expected integer, got `{}`", payload.token),
                 payload.line_number,
             )),
         },
         None => Err(TextParseError::eof()),
     }
-}
-
-fn strip_quoted(quoted_text: &[NonZeroU8]) -> &[NonZeroU8] {
-    &quoted_text[1..quoted_text.len() - 1]
 }

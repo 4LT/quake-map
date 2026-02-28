@@ -1,6 +1,5 @@
-use crate::{common, error};
-use common::CellOptionExt;
-use crate::lexer::{Token, TokenIterator};
+use crate::error;
+use crate::lexer::{LineToken, TokenIterator};
 use std::io;
 use std::num::NonZeroU8;
 use std::string::ToString;
@@ -42,9 +41,11 @@ fn lex_all_symbols() {
         (&b"q\""[..], 4u64),
     ];
 
-    let expected_iter = expected.iter().map(|&(text, line_number)| Token {
-        text: bytes_to_token_text(text),
-        line_number: line_number.try_into().unwrap(),
+    let expected_iter = expected.iter().map(|&(text, line_number)| {
+        LineToken::from_text(
+            bytes_to_token_text(text),
+            line_number.try_into().unwrap(),
+        )
     });
 
     iter.zip(expected_iter).for_each(|(actual, expected)| {
@@ -60,7 +61,8 @@ fn lex_bad_quoted() {
     let bad_token = TokenIterator::new(&input[..]).nth(1);
 
     if let Err(qmap_error) = bad_token.unwrap() {
-        if let error::TextParse::Lexer(line_error) = qmap_error.steal() {
+        if let error::TextParse::Lexer(line_error) = qmap_error.take().unwrap()
+        {
             assert!(line_error.message.contains("closing quote"));
             assert_eq!(u64::from(line_error.line_number.unwrap()), 1u64);
         } else {
@@ -77,7 +79,7 @@ fn lex_io_error() {
     let bad_token = TokenIterator::new(reader).next();
 
     if let Err(qmap_error) = bad_token.unwrap() {
-        if let error::TextParse::Io(io_error) = qmap_error.steal() {
+        if let error::TextParse::Io(io_error) = qmap_error.take().unwrap() {
             assert!(io_error.to_string().contains("Generic test error"));
         } else {
             panic!("Unexpected error type");
