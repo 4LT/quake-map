@@ -6,7 +6,7 @@
 
 * Rename `WriteAttempt` to `WriteResult`
 
-* Make Err variant of `ValidationResult` implement `std::error::Error` trait
+* Make Err variant of `ValidationResult` implement `core::error::Error` trait
 
 ### 0.5.2
 

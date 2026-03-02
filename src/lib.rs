@@ -58,7 +58,6 @@ extern crate std;
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-#[cfg(feature = "std")]
 mod error;
 
 #[cfg(feature = "std")]
@@ -73,10 +72,7 @@ pub use error::Write as WriteError;
 #[cfg(feature = "std")]
 pub use error::WriteResult;
 
-#[cfg(feature = "std")]
 pub use error::Validation as ValidationError;
-
-#[cfg(feature = "std")]
 pub use error::ValidationResult;
 
 mod repr;
