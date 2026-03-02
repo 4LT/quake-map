@@ -1,6 +1,6 @@
 [package]
 name = "quake-map"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Seth Rader"]
 edition = "2021"
 description = "Parser for Quake and Quake II .map files"

@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.6.1
+
+* Change documentation to require `Quake2SurfaceExtension::is_zeroed()` to
+return false if `surface_value` is NaN
+
 ### 0.6.0
 
 * Make `Q2SurfaceExtension` public

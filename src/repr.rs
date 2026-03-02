@@ -294,9 +294,7 @@ pub struct Quake2SurfaceExtension {
 }
 
 impl Quake2SurfaceExtension {
-    /// Returns true if all fields are 0, otherwise false.  Behavior is
-    /// undefined if `surface_value` is NaN (read: behavior may change between
-    /// revisions without remark).
+    /// Returns true if all fields are 0, otherwise false
     pub fn is_zeroed(&self) -> bool {
         self.content_flags == 0
             && self.surface_flags == 0

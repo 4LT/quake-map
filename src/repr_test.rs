@@ -52,6 +52,12 @@ const Q2_EXTENSION: Quake2SurfaceExtension = Quake2SurfaceExtension {
     surface_value: 300.0,
 };
 
+const Q2_EXTENSION_NAN: Quake2SurfaceExtension = Quake2SurfaceExtension {
+    content_flags: 0,
+    surface_flags: 0,
+    surface_value: f64::NAN,
+};
+
 fn expect_err_containing(res: ValidationResult, text: &str) {
     if let Err(ValidationError(msg)) = res {
         assert!(
@@ -297,6 +303,11 @@ fn check_bad_alignment_scale() {
     };
 
     expect_err_containing(aln.check_writable(), "finite");
+}
+
+#[test]
+fn check_q2_ext_with_nan_is_not_zeroed() {
+    assert!(!Q2_EXTENSION_NAN.is_zeroed());
 }
 
 #[cfg(feature = "std")]
