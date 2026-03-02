@@ -79,6 +79,12 @@ impl From<io::Error> for Write {
     }
 }
 
+impl From<Validation> for Write {
+    fn from(val_err: Validation) -> Self {
+        Self::Validation(val_err.0)
+    }
+}
+
 impl fmt::Display for Write {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -89,3 +95,33 @@ impl fmt::Display for Write {
 }
 
 impl std::error::Error for Write {}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Validation(pub String);
+
+impl From<String> for Validation {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for Validation {
+    fn from(s: &str) -> Self {
+        Self(String::from(s))
+    }
+}
+
+impl fmt::Display for Validation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for Validation {}
+
+/// Return type for validating writability of entities and other items
+pub type ValidationResult = Result<(), Validation>;
+
+pub type TextParseResult<T> = Result<T, TextParse>;
+
+pub type WriteResult = Result<(), Write>;

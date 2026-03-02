@@ -5,7 +5,7 @@ extern crate alloc;
 
 use crate::repr::*;
 
-use crate::{CheckWritable, ValidationResult};
+use crate::{CheckWritable, ValidationError, ValidationResult};
 
 #[cfg(feature = "std")]
 use crate::WriteError;
@@ -53,8 +53,13 @@ const Q2_EXTENSION: Quake2SurfaceExtension = Quake2SurfaceExtension {
 };
 
 fn expect_err_containing(res: ValidationResult, text: &str) {
-    if let Err(e) = res {
-        assert!(e.contains(text), "Expected {:?} to contain '{}'", e, text);
+    if let Err(ValidationError(msg)) = res {
+        assert!(
+            msg.contains(text),
+            "Expected {:?} to contain '{}'",
+            msg,
+            text
+        );
     } else {
         panic_expected_error();
     }

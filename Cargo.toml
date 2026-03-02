@@ -1,13 +1,13 @@
 [package]
 name = "quake-map"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["Seth Rader"]
 edition = "2021"
 description = "Parser for Quake and Quake II .map files"
 license = "CC0-1.0 OR MIT OR Apache-2.0"
 documentation = "https://docs.rs/quake-map"
 repository = "https://github.com/4LT/quake-map"
-keywords = ["gamedev", "parser"]
+keywords = ["gamedev", "quake", "parser"]
 
 [features]
 default = ["std"]
