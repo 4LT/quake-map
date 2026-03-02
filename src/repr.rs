@@ -6,16 +6,12 @@ extern crate alloc;
 #[cfg(feature = "std")]
 use std::io;
 
-use {
-    alloc::ffi::CString, alloc::format, alloc::string::String, alloc::vec::Vec,
-    core::ffi::CStr,
-};
+use {alloc::ffi::CString, alloc::format, alloc::vec::Vec, core::ffi::CStr};
 
 #[cfg(feature = "std")]
-use crate::{WriteAttempt, WriteError};
+use crate::{WriteError, WriteResult};
 
-/// Return type for validating writability of entities and other items
-pub type ValidationResult = Result<(), String>;
+use crate::{ValidationError, ValidationResult};
 
 /// Validation of entities and other items
 pub trait CheckWritable {
@@ -53,7 +49,7 @@ impl QuakeMap {
     /// Writes the map to the provided writer in text format, failing if
     /// validation fails or an I/O error occurs
     #[cfg(feature = "std")]
-    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteAttempt {
+    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteResult {
         for ent in &self.entities {
             ent.write_to(writer)?;
         }
@@ -111,8 +107,8 @@ impl Entity {
     }
 
     #[cfg(feature = "std")]
-    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteAttempt {
-        self.check_writable().map_err(WriteError::Validation)?;
+    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteResult {
+        self.check_writable().map_err(WriteError::from)?;
 
         writer.write_all(b"{\r\n").map_err(WriteError::Io)?;
 
@@ -187,7 +183,7 @@ pub struct Surface {
 
 impl Surface {
     #[cfg(feature = "std")]
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteAttempt {
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteResult {
         write_half_space_to(&self.half_space, writer)?;
         writer.write_all(b" ").map_err(WriteError::Io)?;
         write_texture_to(&self.texture, writer)?;
@@ -241,7 +237,7 @@ pub struct Alignment {
 
 impl Alignment {
     #[cfg(feature = "std")]
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteAttempt {
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteResult {
         match self.axes {
             None => {
                 write!(
@@ -308,7 +304,7 @@ impl Quake2SurfaceExtension {
     }
 
     #[cfg(feature = "std")]
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteAttempt {
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> WriteResult {
         write!(
             writer,
             "{} {} {}",
@@ -347,7 +343,7 @@ impl CheckWritable for Alignment {
 }
 
 #[cfg(feature = "std")]
-fn write_edict_to<W: io::Write>(edict: &Edict, writer: &mut W) -> WriteAttempt {
+fn write_edict_to<W: io::Write>(edict: &Edict, writer: &mut W) -> WriteResult {
     for (key, value) in edict {
         writer.write_all(b"\"").map_err(WriteError::Io)?;
         writer.write_all(key.as_bytes()).map_err(WriteError::Io)?;
@@ -359,7 +355,7 @@ fn write_edict_to<W: io::Write>(edict: &Edict, writer: &mut W) -> WriteAttempt {
 }
 
 #[cfg(feature = "std")]
-fn write_brush_to<W: io::Write>(brush: &Brush, writer: &mut W) -> WriteAttempt {
+fn write_brush_to<W: io::Write>(brush: &Brush, writer: &mut W) -> WriteResult {
     writer.write_all(b"{\r\n").map_err(WriteError::Io)?;
 
     for surf in brush {
@@ -375,7 +371,7 @@ fn write_brush_to<W: io::Write>(brush: &Brush, writer: &mut W) -> WriteAttempt {
 fn write_half_space_to<W: io::Write>(
     half_space: &HalfSpace,
     writer: &mut W,
-) -> WriteAttempt {
+) -> WriteResult {
     for (index, pt) in half_space.iter().enumerate() {
         writer.write_all(b"( ").map_err(WriteError::Io)?;
 
@@ -396,7 +392,7 @@ fn write_half_space_to<W: io::Write>(
 fn write_texture_to<W: io::Write>(
     texture: &CStr,
     writer: &mut W,
-) -> WriteAttempt {
+) -> WriteResult {
     let needs_quotes =
         texture.to_bytes().iter().any(|c| c.is_ascii_whitespace())
             || texture.to_bytes().is_empty();
@@ -428,7 +424,7 @@ fn check_writable_f64(num: f64) -> ValidationResult {
     if num.is_finite() {
         Ok(())
     } else {
-        Err(format!("Non-finite number ({})", num))
+        Err(format!("Non-finite number ({})", num).into())
     }
 }
 
@@ -442,7 +438,8 @@ fn check_writable_texture(s: &CStr) -> ValidationResult {
         Err(_) => Err(format!(
             "Cannot write texture {:?}, not quotable and contains whitespace",
             s
-        )),
+        )
+        .into()),
     }
 }
 
@@ -454,7 +451,8 @@ fn check_writable_quoted(s: &CStr) -> ValidationResult {
             return Err(format!(
                 "Cannot write quote-wrapped string, contains {:?}",
                 char::from(*c)
-            ));
+            )
+            .into());
         }
     }
 
@@ -465,15 +463,19 @@ fn check_writable_unquoted(s: &CStr) -> ValidationResult {
     let s_bytes = s.to_bytes();
 
     if s_bytes.is_empty() {
-        return Err(String::from("Cannot write unquoted empty string"));
+        return Err(ValidationError::from(
+            "Cannot write unquoted empty string",
+        ));
     }
 
     if s_bytes[0] == b'"' {
-        return Err(String::from("Cannot lead unquoted string with quote"));
+        return Err(ValidationError::from(
+            "Cannot lead unquoted string with quote",
+        ));
     }
 
     if contains_ascii_whitespace(s) {
-        Err(String::from(
+        Err(ValidationError::from(
             "Cannot write unquoted string, contains whitespace",
         ))
     } else {

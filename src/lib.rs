@@ -2,7 +2,7 @@
 //!
 //! # Example
 //!
-//! ```
+//!```
 //! # use std::ffi::CString;
 //! # use std::io::Read;
 //! #
@@ -47,7 +47,7 @@
 //! #   }
 //! #   Ok(())
 //! # }
-//! ```
+//!```
 
 #![no_std]
 
@@ -58,20 +58,22 @@ extern crate std;
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-#[cfg(feature = "std")]
 mod error;
 
 #[cfg(feature = "std")]
 pub use error::TextParse as TextParseError;
 
 #[cfg(feature = "std")]
+pub use error::TextParseResult;
+
+#[cfg(feature = "std")]
 pub use error::Write as WriteError;
 
 #[cfg(feature = "std")]
-pub type TextParseResult<T> = Result<T, TextParseError>;
+pub use error::WriteResult;
 
-#[cfg(feature = "std")]
-pub type WriteAttempt = Result<(), WriteError>;
+pub use error::Validation as ValidationError;
+pub use error::ValidationResult;
 
 mod repr;
 
@@ -81,10 +83,7 @@ mod lexer;
 #[cfg(feature = "std")]
 mod parser;
 
-pub use repr::{
-    Alignment, Brush, CheckWritable, Edict, Entity, EntityKind, HalfSpace,
-    Point, QuakeMap, Surface, ValidationResult, Vec2, Vec3,
-};
+pub use repr::*;
 
 #[cfg(feature = "std")]
 pub use parser::parse;

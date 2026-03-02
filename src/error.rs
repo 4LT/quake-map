@@ -1,13 +1,23 @@
+#[cfg(feature = "std")]
 extern crate std;
 
-use std::{error, fmt, io, num::NonZeroU64, string::String};
+extern crate alloc;
+
+#[cfg(feature = "std")]
+use std::{io, num::NonZeroU64};
+
+use core::{error, fmt};
+
+use alloc::string::String;
 
 #[derive(Debug, Clone)]
+#[cfg(feature = "std")]
 pub struct Line {
     pub message: String,
     pub line_number: Option<NonZeroU64>,
 }
 
+#[cfg(feature = "std")]
 impl fmt::Display for Line {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.line_number {
@@ -17,15 +27,18 @@ impl fmt::Display for Line {
     }
 }
 
+#[cfg(feature = "std")]
 impl error::Error for Line {}
 
 #[derive(Debug)]
+#[cfg(feature = "std")]
 pub enum TextParse {
     Io(io::Error),
     Lexer(Line),
     Parser(Line),
 }
 
+#[cfg(feature = "std")]
 impl TextParse {
     pub fn from_lexer(message: String, line_number: NonZeroU64) -> TextParse {
         TextParse::Lexer(Line {
@@ -49,12 +62,14 @@ impl TextParse {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<io::Error> for TextParse {
     fn from(err: io::Error) -> Self {
         TextParse::Io(err)
     }
 }
 
+#[cfg(feature = "std")]
 impl fmt::Display for TextParse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -65,20 +80,31 @@ impl fmt::Display for TextParse {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for TextParse {}
 
 #[derive(Debug)]
+#[cfg(feature = "std")]
 pub enum Write {
     Validation(String),
     Io(std::io::Error),
 }
 
+#[cfg(feature = "std")]
 impl From<io::Error> for Write {
     fn from(err: io::Error) -> Self {
         Write::Io(err)
     }
 }
 
+#[cfg(feature = "std")]
+impl From<Validation> for Write {
+    fn from(val_err: Validation) -> Self {
+        Self::Validation(val_err.0)
+    }
+}
+
+#[cfg(feature = "std")]
 impl fmt::Display for Write {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -88,4 +114,37 @@ impl fmt::Display for Write {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for Write {}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Validation(pub String);
+
+impl From<String> for Validation {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for Validation {
+    fn from(s: &str) -> Self {
+        Self(String::from(s))
+    }
+}
+
+impl fmt::Display for Validation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl error::Error for Validation {}
+
+/// Return type for validating writability of entities and other items
+pub type ValidationResult = Result<(), Validation>;
+
+#[cfg(feature = "std")]
+pub type TextParseResult<T> = Result<T, TextParse>;
+
+#[cfg(feature = "std")]
+pub type WriteResult = Result<(), Write>;
